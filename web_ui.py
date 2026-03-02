@@ -66,10 +66,21 @@ def match_srt_to_scenes(srt_path, scenes):
         accumulated_text = ""
         end_time = start_time
         
-        while srt_idx < total_srt and len(accumulated_text) < len(scene_text) * 0.9:
-            accumulated_text += srt_data[srt_idx]['text']
-            end_time = srt_data[srt_idx]['end']
-            srt_idx += 1
+        # [업데이트된 핵심 로직] 90%에서 대충 멈추지 않고, 최적의 경계선을 찾습니다.
+        while srt_idx < total_srt:
+            # 현재까지 더한 글자 수와 대본의 오차
+            current_diff = abs(len(scene_text) - len(accumulated_text))
+            # 다음 자막 1개를 더 가져왔을 때의 오차
+            next_diff = abs(len(scene_text) - (len(accumulated_text) + len(srt_data[srt_idx]['text'])))
+            
+            # 다음 자막을 더하는 것이 오차를 줄이거나 같다면 계속 합칩니다.
+            if next_diff <= current_diff:
+                accumulated_text += srt_data[srt_idx]['text']
+                end_time = srt_data[srt_idx]['end']
+                srt_idx += 1
+            else:
+                # 다음 자막을 더했더니 오히려 글자 수를 초과해서 오차가 커지면 스톱! (다음 장면으로 넘어감)
+                break
         
         duration = end_time - start_time
         scene_timings.append(duration)
