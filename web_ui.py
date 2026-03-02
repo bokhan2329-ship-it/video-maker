@@ -33,12 +33,28 @@ def parse_time(time_str):
 def extract_scenes_from_script(script_path):
     with open(script_path, 'r', encoding='utf-8') as f:
         content = f.read()
+    
     scenes = []
-    pattern = r'대사 내용:\s*(.*?)\s*영문 프롬프트:'
-    matches = re.finditer(pattern, content, re.DOTALL)
-    for match in matches:
-        dialogue = match.group(1).strip()
-        scenes.append(clean_text(dialogue))
+    
+    # 1. 대표님 양식 호환: '대사 내용:' 이라는 글자가 있으면 스마트하게 대사만 발췌
+    if "대사 내용:" in content:
+        parts = content.split("대사 내용:")
+        for part in parts[1:]:
+            # 뒤에 따라오는 프롬프트나 괄호 기호 앞까지만 딱 잘라내기
+            dialogue = re.split(r'(영문 프롬프트:|{장면|프롬프트|\[)', part)[0].strip()
+            cleaned = clean_text(dialogue)
+            if cleaned:
+                scenes.append(cleaned)
+                
+    # 2. 구매자용 만능 양식: 아무 양식 없이 순수 대사만 있을 경우
+    # 엔터 2번(빈 줄)을 기준으로 한 문단을 이미지 1장으로 자동 인식
+    else:
+        blocks = content.strip().split('\n\n')
+        for block in blocks:
+            cleaned = clean_text(block)
+            if cleaned:
+                scenes.append(cleaned)
+                
     return scenes
 
 def match_srt_to_scenes(srt_path, scenes):
@@ -115,8 +131,16 @@ if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True)
         script_path = os.path.join("temp_workspace", script_file.name)
         with open(script_path, "wb") as f: f.write(script_file.getbuffer())
         
+        # 파일 이름에서 숫자를 뽑아내서 순서대로 정렬하는 마법의 주문
+        def get_number(filename):
+            numbers = re.findall(r'\d+', filename)
+            return int(numbers[0]) if numbers else 0
+            
+        # 업로드된 이미지들을 파일 이름의 '숫자' 기준으로 완벽하게 오름차순 정렬
+        sorted_images = sorted(image_files, key=lambda x: get_number(x.name))
+
         image_paths = []
-        for img in image_files:
+        for img in sorted_images:
             img_path = os.path.join("temp_workspace", img.name)
             with open(img_path, "wb") as f: f.write(img.getbuffer())
             image_paths.append(img_path)
