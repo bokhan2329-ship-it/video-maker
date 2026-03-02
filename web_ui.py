@@ -68,18 +68,14 @@ def match_srt_to_scenes(srt_path, scenes):
         
         # [업데이트된 핵심 로직] 90%에서 대충 멈추지 않고, 최적의 경계선을 찾습니다.
         while srt_idx < total_srt:
-            # 현재까지 더한 글자 수와 대본의 오차
             current_diff = abs(len(scene_text) - len(accumulated_text))
-            # 다음 자막 1개를 더 가져왔을 때의 오차
             next_diff = abs(len(scene_text) - (len(accumulated_text) + len(srt_data[srt_idx]['text'])))
             
-            # 다음 자막을 더하는 것이 오차를 줄이거나 같다면 계속 합칩니다.
             if next_diff <= current_diff:
                 accumulated_text += srt_data[srt_idx]['text']
                 end_time = srt_data[srt_idx]['end']
                 srt_idx += 1
             else:
-                # 다음 자막을 더했더니 오히려 글자 수를 초과해서 오차가 커지면 스톱! (다음 장면으로 넘어감)
                 break
         
         duration = end_time - start_time
@@ -99,17 +95,15 @@ with col2:
 st.divider()
 
 # --- [실행 버튼 및 렌더링 로직] ---
-# 줄바꿈과 띄어쓰기를 적용하여 버튼 주변을 깔끔하게 디자인
 st.write("") 
 if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True):
     if not (audio_file and srt_file and script_file and image_files):
         st.error("⚠️ 4가지 파일을 모두 업로드해 주세요!")
     else:
-        st.write("") # 띄어쓰기 여백
+        st.write("") 
         status_text = st.empty()
         status_text.info("🔄 작업 준비 중... (파일을 임시로 저장합니다)")
         
-        # 1. 파일 임시 저장
         os.makedirs("temp_workspace", exist_ok=True)
         
         audio_path = os.path.join("temp_workspace", audio_file.name)
@@ -129,16 +123,14 @@ if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True)
             
         status_text.info("🔍 대본과 자막을 분석하여 장면 시간표를 맞추는 중입니다...")
 
-        # 2. 로직 실행
         scenes_text = extract_scenes_from_script(script_path)
         scene_durations = match_srt_to_scenes(srt_path, scenes_text)
         
         if len(image_paths) < len(scene_durations):
             st.error(f"⚠️ 경고: 업로드한 이미지 개수({len(image_paths)}장)가 대본 장면 수({len(scene_durations)}개)보다 부족합니다!")
         else:
-            status_text.empty() # 기존 메시지 지우기
+            status_text.empty()
             
-            # 3. 비디오 렌더링 (답답함 해소를 위한 스피너 애니메이션 적용)
             audio_clip = AudioFileClip(audio_path)
             video_clips = []
             
@@ -151,16 +143,14 @@ if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True)
             
             output_path = os.path.join("temp_workspace", "완성본_영상.mp4")
             
-            # 빙글빙글 도는 애니메이션과 함께 렌더링 진행
             with st.spinner("⏳ 영상을 하나로 합치며 렌더링 중입니다! (분량이 길면 2~5분 정도 소요됩니다. 멈춘 것이 아니니 창을 닫지 마세요)"):
                 final_video.write_videofile(output_path, fps=24, codec="libx264", audio_codec="aac", logger=None)
             
             st.success("🎉 렌더링 완료! 대본 싱크가 완벽하게 맞는 영상이 완성되었습니다!")
-            st.balloons() # 축하 풍선 효과!
+            st.balloons()
             
-            st.write("") # 띄어쓰기 여백
+            st.write("") 
             
-            # 4. 완성된 영상 다운로드 버튼 제공
             with open(output_path, "rb") as file:
                 st.download_button(
                     label="📥 완성된 영상 다운로드 하기",
