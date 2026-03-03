@@ -6,6 +6,18 @@ from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
 # --- [UI 디자인 세팅] ---
 st.set_page_config(page_title="자동 영상 변환기 | Ai 돈나", page_icon="🎬", layout="centered")
 
+# --- [보안 설정: 투명 망토 씌우기] ---
+# 우측 상단 메뉴, 하단 워터마크, 전체화면 버튼 등을 모두 숨겨서 링크 유출을 방지합니다.
+hide_streamlit_style = """
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+button[title="View fullscreen"] {display: none !important;}
+</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # [디자인 수정 완료] HTML 태그를 이용해 완벽한 가운데 정렬 및 줄바꿈 적용
 st.markdown("""
 <div style="text-align: center;">
@@ -36,18 +48,13 @@ def extract_scenes_from_script(script_path):
     
     scenes = []
     
-    # 1. 대표님 양식 호환: '대사 내용:' 이라는 글자가 있으면 스마트하게 대사만 발췌
     if "대사 내용:" in content:
         parts = content.split("대사 내용:")
         for part in parts[1:]:
-            # 뒤에 따라오는 프롬프트나 괄호 기호 앞까지만 딱 잘라내기
             dialogue = re.split(r'(영문 프롬프트:|{장면|프롬프트|\[)', part)[0].strip()
             cleaned = clean_text(dialogue)
             if cleaned:
                 scenes.append(cleaned)
-                
-    # 2. 구매자용 만능 양식: 아무 양식 없이 순수 대사만 있을 경우
-    # 엔터 2번(빈 줄)을 기준으로 한 문단을 이미지 1장으로 자동 인식
     else:
         blocks = content.strip().split('\n\n')
         for block in blocks:
@@ -82,7 +89,6 @@ def match_srt_to_scenes(srt_path, scenes):
         accumulated_text = ""
         end_time = start_time
         
-        # [업데이트된 핵심 로직] 90%에서 대충 멈추지 않고, 최적의 경계선을 찾습니다.
         while srt_idx < total_srt:
             current_diff = abs(len(scene_text) - len(accumulated_text))
             next_diff = abs(len(scene_text) - (len(accumulated_text) + len(srt_data[srt_idx]['text'])))
@@ -131,12 +137,10 @@ if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True)
         script_path = os.path.join("temp_workspace", script_file.name)
         with open(script_path, "wb") as f: f.write(script_file.getbuffer())
         
-        # 파일 이름에서 숫자를 뽑아내서 순서대로 정렬하는 마법의 주문
         def get_number(filename):
             numbers = re.findall(r'\d+', filename)
             return int(numbers[0]) if numbers else 0
             
-        # 업로드된 이미지들을 파일 이름의 '숫자' 기준으로 완벽하게 오름차순 정렬
         sorted_images = sorted(image_files, key=lambda x: get_number(x.name))
 
         image_paths = []
