@@ -6,28 +6,32 @@ from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
 # --- [UI 디자인 세팅] ---
 st.set_page_config(page_title="자동 영상 변환기 | Ai 돈나", page_icon="🎬", layout="centered")
 
-# --- [보안 설정: 안전한 투명 망토 씌우기] ---
+# --- [보안 1: 기본 UI 깔끔하게 숨기기] ---
 hide_streamlit_style = """
 <style>
-/* 1. 기본 메뉴, 헤더, 푸터 안전하게 숨김 */
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
-
-/* 2. 풀스크린 버튼만 콕 집어서 강제 숨김 */
-button[title="View fullscreen"] {display: none !important;}
-
-/* 3. 우측 하단 스트림릿 워터마크(배지)만 정확히 타겟팅해서 숨김 */
-.viewerBadge_container__1JCIV,
-.viewerBadge_link__1S137,
-[class^="viewerBadge_"] {
-    display: none !important;
-}
 </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-# [디자인 수정 완료] HTML 태그를 이용해 완벽한 가운데 정렬 및 줄바꿈 적용
+# --- [보안 2: VIP 자동 인증 (비밀번호 입력 필요 없음!)] ---
+# URL 주소 끝에 vip=da 라는 암호가 있어야만 작동합니다.
+if st.query_params.get("vip") != "da":
+    st.markdown("""
+    <div style='text-align: center; padding: 50px; margin-top: 50px;'>
+        <h2 style='color: #E24A4A;'>🚨 접근이 차단되었습니다.</h2>
+        <p style='font-size: 16px; color: #555;'>
+            본 프로그램은 디에이 아카데미 수강생 전용 프리미엄 도구입니다.<br>
+            정규 강의실(라이브클래스)을 통해서만 정상적으로 접속하실 수 있습니다.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.stop() # 여기서 프로그램을 완전히 멈춰서 화면을 차단합니다.
+
+# --- [아래는 기존과 동일한 변환기 본체] ---
+# HTML 태그를 이용해 완벽한 가운데 정렬 및 줄바꿈 적용
 st.markdown("""
 <div style="text-align: center;">
     <h1 style="margin-bottom: 5px;">🎬 디에이 아카데미</h1>
