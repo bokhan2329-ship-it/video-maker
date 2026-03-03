@@ -3,13 +3,13 @@ import os
 import re
 import traceback
 import subprocess
+import gc
 from PIL import Image
 from imageio_ffmpeg import get_ffmpeg_exe
 
 # --- [UI 디자인 세팅] ---
 st.set_page_config(page_title="자동 영상 변환기 | Ai 돈나", page_icon="🎬", layout="centered")
 
-# --- [보안 1: 기본 UI 숨기기] ---
 hide_streamlit_style = """
 <style>
 #MainMenu {visibility: hidden;}
@@ -19,35 +19,25 @@ footer {visibility: hidden;}
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-# --- [보안 2: VIP 자동 인증] ---
 if st.query_params.get("vip") != "da":
     st.markdown("""
     <div style='text-align: center; padding: 50px; margin-top: 50px;'>
         <h2 style='color: #E24A4A;'>🚨 접근이 차단되었습니다.</h2>
-        <p style='font-size: 16px; color: #555;'>
-            본 프로그램은 디에이 아카데미 수강생 전용 프리미엄 도구입니다.<br>
-            정규 강의실(라이브클래스)을 통해서만 정상적으로 접속하실 수 있습니다.
-        </p>
     </div>
     """, unsafe_allow_html=True)
     st.stop()
 
-# --- [UI 본문] ---
 st.markdown("""
 <div style="text-align: center;">
     <h1 style="margin-bottom: 5px;">🎬 디에이 아카데미</h1>
     <h1 style="margin-top: 0px; color: #4A90E2;">자동 영상 변환기</h1>
     <p style="margin-top: 20px; font-size: 16px;">
-        <strong>Ai 돈나의 원클릭 AI 스튜디오에 오신 것을 환영합니다!</strong><br><br>
-        아래에 4가지 파일(음성, 자막, 대본, 이미지)을 올려주시면<br>
-        대본 싱크에 맞는 완벽한 롱폼 영상이 자동으로 완성됩니다.
+        <strong>Ai 돈나의 원클릭 AI 스튜디오에 오신 것을 환영합니다!</strong>
     </p>
 </div>
 """, unsafe_allow_html=True)
-
 st.divider()
 
-# --- [기능 함수들] ---
 def clean_text(text):
     return re.sub(r'[^가-힣a-zA-Z0-9]', '', text)
 
@@ -101,32 +91,27 @@ def match_srt_to_scenes(srt_path, scenes):
                 accumulated_text += srt_data[srt_idx]['text']
                 end_time = srt_data[srt_idx]['end']
                 srt_idx += 1
-            else:
-                break
+            else: break
         scene_timings.append(end_time - start_time)
     return scene_timings
 
-# --- [웹 파일 업로드 화면] ---
 col1, col2 = st.columns(2)
 with col1:
-    audio_file = st.file_uploader("🎵 1. 음성 파일 업로드 (.mp3)", type=['mp3'])
-    script_file = st.file_uploader("📝 3. 대본 파일 업로드 (.txt)", type=['txt'])
+    audio_file = st.file_uploader("🎵 1. 음성 (.mp3)", type=['mp3'])
+    script_file = st.file_uploader("📝 3. 대본 (.txt)", type=['txt'])
 with col2:
-    srt_file = st.file_uploader("💬 2. 자막 파일 업로드 (.srt)", type=['srt'])
-    image_files = st.file_uploader("📸 4. 이미지 파일들 업로드 (여러 장 드래그 가능)", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
+    srt_file = st.file_uploader("💬 2. 자막 (.srt)", type=['srt'])
+    image_files = st.file_uploader("📸 4. 이미지 (여러 장 가능)", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
 
 st.divider()
 
-# --- [실행 버튼 및 초경량 렌더링 로직] ---
-st.write("") 
-if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True):
+if st.button("🚀 자동 영상 변환 시작", use_container_width=True):
     if not (audio_file and srt_file and script_file and image_files):
         st.error("⚠️ 4가지 파일을 모두 업로드해 주세요!")
     else:
         try:
-            st.write("") 
             status_text = st.empty()
-            status_text.info("🔄 작업 준비 중... (파일을 분석하고 있습니다)")
+            status_text.info("🔄 [1/4] 작업 준비 및 파일 저장 중...")
             
             os.makedirs("temp_workspace", exist_ok=True)
             audio_path = os.path.join("temp_workspace", audio_file.name)
@@ -139,41 +124,45 @@ if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True)
             def get_number(filename):
                 numbers = re.findall(r'\d+', filename)
                 return int(numbers[0]) if numbers else 0
+            
             sorted_images = sorted(image_files, key=lambda x: get_number(x.name))
-            image_paths = []
-            for img in sorted_images:
-                img_path = os.path.join("temp_workspace", img.name)
-                with open(img_path, "wb") as f: f.write(img.getbuffer())
-                image_paths.append(img_path)
-                
+            
             scenes_text = extract_scenes_from_script(script_path)
-            if not scenes_text:
-                raise ValueError("대본 파일(.txt)에서 대사를 찾을 수 없습니다.")
-
+            if not scenes_text: raise ValueError("대본 파일 오류")
             scene_durations = match_srt_to_scenes(srt_path, scenes_text)
             
-            if len(image_paths) < len(scene_durations):
-                st.error(f"⚠️ 경고: 업로드한 이미지 개수({len(image_paths)}장)가 대본 장면 수({len(scene_durations)}개)보다 부족합니다! 대본을 수정해 주세요.")
+            if len(sorted_images) < len(scene_durations):
+                st.error(f"⚠️ 업로드 이미지({len(sorted_images)}장)가 대본 장면 수({len(scene_durations)}개)보다 부족합니다.")
             else:
-                # --- [초경량 엔진 가동 시작] ---
-                status_text.info("🖼️ 이미지 규격을 통일하는 중입니다... (메모리 절약 모드)")
+                status_text.info("🖼️ [2/4] 이미지 규격 통일 중... (메모리 짠돌이 모드 가동)")
                 
-                # 1. FFmpeg 에러를 막기 위해 모든 이미지 크기를 첫 번째 이미지 크기에 맞춤 (짝수로)
-                first_img = Image.open(image_paths[0]).convert("RGB")
-                target_w, target_h = first_img.size
-                target_w, target_h = target_w - (target_w % 2), target_h - (target_h % 2)
+                # 첫 번째 이미지로 기준 크기 잡기
+                first_img_bytes = sorted_images[0].getvalue()
+                with open(os.path.join("temp_workspace", "temp_first.jpg"), "wb") as f: f.write(first_img_bytes)
+                with Image.open(os.path.join("temp_workspace", "temp_first.jpg")) as img:
+                    target_w, target_h = img.size
+                    target_w, target_h = target_w - (target_w % 2), target_h - (target_h % 2)
                 
                 resized_paths = []
-                for p in image_paths:
-                    img = Image.open(p).convert("RGB")
-                    img = img.resize((target_w, target_h), Image.Resampling.LANCZOS)
-                    new_p = p + "_resized.jpg"
-                    img.save(new_p, quality=95)
+                # 메모리를 아끼기 위해 한 장씩 저장하고 닫고 버리기
+                for i, img_file in enumerate(sorted_images):
+                    if i >= len(scene_durations): break # 필요한 만큼만 처리
+                    
+                    raw_path = os.path.join("temp_workspace", f"raw_{i}.jpg")
+                    new_p = os.path.join("temp_workspace", f"resized_{i}.jpg")
+                    
+                    with open(raw_path, "wb") as f: f.write(img_file.getvalue())
+                    
+                    with Image.open(raw_path).convert("RGB") as pil_img:
+                        pil_img = pil_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+                        pil_img.save(new_p, quality=85) # 퀄리티 85%로 용량/메모리 대폭 절약
+                    
+                    os.remove(raw_path) # 원본 바로 삭제 (도마 비우기)
                     resized_paths.append(new_p)
+                    gc.collect() # 강제 메모리 청소
 
-                status_text.info("🎬 영상을 조립하는 중입니다... (거의 다 왔습니다!)")
+                status_text.info("🎬 [3/4] 초경량 엔진으로 영상을 조립하는 중입니다...")
 
-                # 2. FFmpeg용 시간표(텍스트 파일) 만들기
                 concat_file_path = os.path.join("temp_workspace", "concat_list.txt")
                 with open(concat_file_path, "w", encoding="utf-8") as f:
                     for i, duration in enumerate(scene_durations):
@@ -184,19 +173,14 @@ if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True)
 
                 output_path = os.path.join("temp_workspace", "완성본_영상.mp4")
                 
-                # 3. 엄청 가벼운 원시 엔진(FFmpeg)으로 조립 렌더링
-                with st.spinner(f"⏳ {len(image_paths)}장의 이미지를 합치고 있습니다. (메모리 초절전 엔진 가동 중!)"):
+                with st.spinner(f"⏳ [4/4] 렌더링 중입니다. 창을 닫지 마세요..."):
                     ffmpeg_exe = get_ffmpeg_exe()
                     cmd = [
                         ffmpeg_exe, "-y",
-                        "-f", "concat",
-                        "-safe", "0",
-                        "-i", concat_file_path,
-                        "-i", audio_path,
-                        "-c:v", "libx264",
-                        "-pix_fmt", "yuv420p",
-                        "-c:a", "aac",
-                        "-shortest",
+                        "-f", "concat", "-safe", "0",
+                        "-i", concat_file_path, "-i", audio_path,
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-shortest",
                         output_path
                     ]
                     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -208,16 +192,13 @@ if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True)
                 st.balloons()
                 
                 with open(output_path, "rb") as file:
-                    st.download_button(label="📥 완성된 영상 다운로드 하기", data=file, file_name="Ai돈나_초고속_영상.mp4", mime="video/mp4", type="primary", use_container_width=True)
+                    st.download_button("📥 완성된 영상 다운로드 하기", data=file, file_name="Ai돈나_초고속_영상.mp4", mime="video/mp4", type="primary", use_container_width=True)
                     
         except Exception as e:
-            st.error("🚨 앗! 영상 변환 중 문제가 발생했습니다.")
+            st.error("🚨 서버 메모리 한계 초과 또는 파일 오류입니다.")
             st.warning("""
-            **💡 [자주 발생하는 오류 원인]**
-            1. **대본 오류:** 대본(.txt) 파일에 '엔터 2번(빈 줄)'이 제대로 안 들어갔거나, 불필요한 기호가 섞여 있습니다.
-            2. **자막 오류:** 자막(.srt) 파일의 내용이 비정상적입니다.
-            
-            새로고침(F5) 후 파일을 확인하고 다시 시도해 주세요!
+            **💡 [해결 방법]**
+            1. **이미지 용량 줄이기:** 올리신 이미지 용량이 너무 큽니다. 'TinyPNG' 같은 사이트에서 용량을 압축한 뒤 올려주세요.
+            2. **분량 쪼개기:** 영상을 절반으로 나누어서 렌더링해 주세요.
+            새로고침(F5) 후 다시 시도해 주세요!
             """)
-            with st.expander("🛠️ 상세 에러 로그 (관리자 확인용)"):
-                st.write(traceback.format_exc())
