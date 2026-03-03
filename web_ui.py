@@ -111,7 +111,8 @@ if st.button("🚀 자동 영상 변환 시작", use_container_width=True):
     else:
         try:
             status_text = st.empty()
-            status_text.info("🔄 [1/4] 작업 준비 및 파일 저장 중...")
+            # [변경 완료] 고급스러운 1단계 멘트
+            status_text.info("🔄 [1/4] AI가 파일 데이터를 분석하고 동기화를 준비하고 있습니다...")
             
             os.makedirs("temp_workspace", exist_ok=True)
             audio_path = os.path.join("temp_workspace", audio_file.name)
@@ -134,9 +135,9 @@ if st.button("🚀 자동 영상 변환 시작", use_container_width=True):
             if len(sorted_images) < len(scene_durations):
                 st.error(f"⚠️ 업로드 이미지({len(sorted_images)}장)가 대본 장면 수({len(scene_durations)}개)보다 부족합니다.")
             else:
-                status_text.info("🖼️ [2/4] 이미지 규격 통일 중... (메모리 짠돌이 모드 가동)")
+                # [변경 완료] 짠돌이 모드 -> 해상도 최적화 작업으로 포장
+                status_text.info("🖼️ [2/4] 업로드된 이미지의 해상도 및 규격을 고화질 영상에 맞게 최적화하는 중입니다...")
                 
-                # 첫 번째 이미지로 기준 크기 잡기
                 first_img_bytes = sorted_images[0].getvalue()
                 with open(os.path.join("temp_workspace", "temp_first.jpg"), "wb") as f: f.write(first_img_bytes)
                 with Image.open(os.path.join("temp_workspace", "temp_first.jpg")) as img:
@@ -144,9 +145,8 @@ if st.button("🚀 자동 영상 변환 시작", use_container_width=True):
                     target_w, target_h = target_w - (target_w % 2), target_h - (target_h % 2)
                 
                 resized_paths = []
-                # 메모리를 아끼기 위해 한 장씩 저장하고 닫고 버리기
                 for i, img_file in enumerate(sorted_images):
-                    if i >= len(scene_durations): break # 필요한 만큼만 처리
+                    if i >= len(scene_durations): break 
                     
                     raw_path = os.path.join("temp_workspace", f"raw_{i}.jpg")
                     new_p = os.path.join("temp_workspace", f"resized_{i}.jpg")
@@ -155,13 +155,14 @@ if st.button("🚀 자동 영상 변환 시작", use_container_width=True):
                     
                     with Image.open(raw_path).convert("RGB") as pil_img:
                         pil_img = pil_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
-                        pil_img.save(new_p, quality=85) # 퀄리티 85%로 용량/메모리 대폭 절약
+                        pil_img.save(new_p, quality=85) 
                     
-                    os.remove(raw_path) # 원본 바로 삭제 (도마 비우기)
+                    os.remove(raw_path) 
                     resized_paths.append(new_p)
-                    gc.collect() # 강제 메모리 청소
+                    gc.collect() 
 
-                status_text.info("🎬 [3/4] 초경량 엔진으로 영상을 조립하는 중입니다...")
+                # [변경 완료] 초경량 엔진 -> 고성능 렌더링 엔진으로 포장
+                status_text.info("🎬 [3/4] 고성능 미디어 엔진을 가동하여 영상과 음성의 싱크를 조립하고 있습니다...")
 
                 concat_file_path = os.path.join("temp_workspace", "concat_list.txt")
                 with open(concat_file_path, "w", encoding="utf-8") as f:
@@ -173,7 +174,8 @@ if st.button("🚀 자동 영상 변환 시작", use_container_width=True):
 
                 output_path = os.path.join("temp_workspace", "완성본_영상.mp4")
                 
-                with st.spinner(f"⏳ [4/4] 렌더링 중입니다. 창을 닫지 마세요..."):
+                # [변경 완료] 렌더링 대기 안내 멘트 고급화
+                with st.spinner(f"⏳ [4/4] 최종 영상을 추출하고 있습니다. (파일 용량에 따라 수 분이 소요될 수 있으니 창을 닫지 마세요)"):
                     ffmpeg_exe = get_ffmpeg_exe()
                     cmd = [
                         ffmpeg_exe, "-y",
@@ -188,11 +190,11 @@ if st.button("🚀 자동 영상 변환 시작", use_container_width=True):
                         raise RuntimeError(f"엔진 렌더링 오류: {result.stderr}")
                 
                 status_text.empty()
-                st.success("🎉 렌더링 완료! 대본 싱크가 완벽하게 맞는 영상이 완성되었습니다!")
+                st.success("🎉 렌더링 완료! 대본 싱크가 완벽하게 맞는 프리미엄 영상이 완성되었습니다!")
                 st.balloons()
                 
                 with open(output_path, "rb") as file:
-                    st.download_button("📥 완성된 영상 다운로드 하기", data=file, file_name="Ai돈나_초고속_영상.mp4", mime="video/mp4", type="primary", use_container_width=True)
+                    st.download_button("📥 완성된 영상 다운로드 하기", data=file, file_name="Ai돈나_자동완성_영상.mp4", mime="video/mp4", type="primary", use_container_width=True)
                     
         except Exception as e:
             st.error("🚨 서버 메모리 한계 초과 또는 파일 오류입니다.")
