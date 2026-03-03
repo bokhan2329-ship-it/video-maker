@@ -6,21 +6,23 @@ from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
 # --- [UI 디자인 세팅] ---
 st.set_page_config(page_title="자동 영상 변환기 | Ai 돈나", page_icon="🎬", layout="centered")
 
-# --- [보안 설정: 핵폭탄급 투명 망토 씌우기] ---
+# --- [보안 설정: 안전한 투명 망토 씌우기] ---
 hide_streamlit_style = """
 <style>
-/* 1. 기본 메뉴, 헤더, 푸터 숨김 */
-#MainMenu {visibility: hidden !important;}
-header {visibility: hidden !important;}
-footer {visibility: hidden !important;}
+/* 1. 기본 메뉴, 헤더, 푸터 안전하게 숨김 */
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
 
-/* 2. 스트림릿 클라우드 임베드 전용 하단 바 (Built with Streamlit & Fullscreen) 강제 숨김 */
-[data-testid="stAppViewContainer"] + div {display: none !important;}
-.stApp > div:last-child {display: none !important;}
-div[class^="viewerBadge"] {display: none !important;}
-
-/* 3. 모든 종류의 풀스크린 버튼 강제 비활성화 */
+/* 2. 풀스크린 버튼만 콕 집어서 강제 숨김 */
 button[title="View fullscreen"] {display: none !important;}
+
+/* 3. 우측 하단 스트림릿 워터마크(배지)만 정확히 타겟팅해서 숨김 */
+.viewerBadge_container__1JCIV,
+.viewerBadge_link__1S137,
+[class^="viewerBadge_"] {
+    display: none !important;
+}
 </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
