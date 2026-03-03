@@ -2,8 +2,9 @@ import streamlit as st
 import os
 import re
 import traceback
-import gc  # 메모리 청소부
-from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
+import subprocess
+from PIL import Image
+from imageio_ffmpeg import get_ffmpeg_exe
 
 # --- [UI 디자인 세팅] ---
 st.set_page_config(page_title="자동 영상 변환기 | Ai 돈나", page_icon="🎬", layout="centered")
@@ -116,7 +117,7 @@ with col2:
 
 st.divider()
 
-# --- [실행 버튼 및 무제한 렌더링 로직] ---
+# --- [실행 버튼 및 초경량 렌더링 로직] ---
 st.write("") 
 if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True):
     if not (audio_file and srt_file and script_file and image_files):
@@ -154,28 +155,60 @@ if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True)
             if len(image_paths) < len(scene_durations):
                 st.error(f"⚠️ 경고: 업로드한 이미지 개수({len(image_paths)}장)가 대본 장면 수({len(scene_durations)}개)보다 부족합니다! 대본을 수정해 주세요.")
             else:
-                status_text.empty()
-                audio_clip = AudioFileClip(audio_path)
-                video_clips = []
-                for i, duration in enumerate(scene_durations):
-                    clip = ImageClip(image_paths[i]).set_duration(duration)
-                    video_clips.append(clip)
-                    
-                final_video = concatenate_videoclips(video_clips, method="compose")
-                final_video = final_video.set_audio(audio_clip)
+                # --- [초경량 엔진 가동 시작] ---
+                status_text.info("🖼️ 이미지 규격을 통일하는 중입니다... (메모리 절약 모드)")
+                
+                # 1. FFmpeg 에러를 막기 위해 모든 이미지 크기를 첫 번째 이미지 크기에 맞춤 (짝수로)
+                first_img = Image.open(image_paths[0]).convert("RGB")
+                target_w, target_h = first_img.size
+                target_w, target_h = target_w - (target_w % 2), target_h - (target_h % 2)
+                
+                resized_paths = []
+                for p in image_paths:
+                    img = Image.open(p).convert("RGB")
+                    img = img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+                    new_p = p + "_resized.jpg"
+                    img.save(new_p, quality=95)
+                    resized_paths.append(new_p)
+
+                status_text.info("🎬 영상을 조립하는 중입니다... (거의 다 왔습니다!)")
+
+                # 2. FFmpeg용 시간표(텍스트 파일) 만들기
+                concat_file_path = os.path.join("temp_workspace", "concat_list.txt")
+                with open(concat_file_path, "w", encoding="utf-8") as f:
+                    for i, duration in enumerate(scene_durations):
+                        f.write(f"file '{os.path.abspath(resized_paths[i])}'\n")
+                        f.write(f"duration {duration}\n")
+                    if resized_paths:
+                        f.write(f"file '{os.path.abspath(resized_paths[-1])}'\n")
+
                 output_path = os.path.join("temp_workspace", "완성본_영상.mp4")
                 
-                with st.spinner(f"⏳ {len(image_paths)}장의 이미지를 합치며 렌더링 중입니다! (분량이 길수록 서버가 열심히 일하고 있으니 창을 닫지 마세요)"):
-                    final_video.write_videofile(output_path, fps=24, codec="libx264", audio_codec="aac", preset="ultrafast", threads=4, logger=None)
+                # 3. 엄청 가벼운 원시 엔진(FFmpeg)으로 조립 렌더링
+                with st.spinner(f"⏳ {len(image_paths)}장의 이미지를 합치고 있습니다. (메모리 초절전 엔진 가동 중!)"):
+                    ffmpeg_exe = get_ffmpeg_exe()
+                    cmd = [
+                        ffmpeg_exe, "-y",
+                        "-f", "concat",
+                        "-safe", "0",
+                        "-i", concat_file_path,
+                        "-i", audio_path,
+                        "-c:v", "libx264",
+                        "-pix_fmt", "yuv420p",
+                        "-c:a", "aac",
+                        "-shortest",
+                        output_path
+                    ]
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    if result.returncode != 0:
+                        raise RuntimeError(f"엔진 렌더링 오류: {result.stderr}")
                 
-                del video_clips
-                del final_video
-                gc.collect()
-                
+                status_text.empty()
                 st.success("🎉 렌더링 완료! 대본 싱크가 완벽하게 맞는 영상이 완성되었습니다!")
                 st.balloons()
+                
                 with open(output_path, "rb") as file:
-                    st.download_button(label="📥 완성된 영상 다운로드 하기", data=file, file_name="Ai돈나_자동완성_영상.mp4", mime="video/mp4", type="primary", use_container_width=True)
+                    st.download_button(label="📥 완성된 영상 다운로드 하기", data=file, file_name="Ai돈나_초고속_영상.mp4", mime="video/mp4", type="primary", use_container_width=True)
                     
         except Exception as e:
             st.error("🚨 앗! 영상 변환 중 문제가 발생했습니다.")
@@ -183,7 +216,6 @@ if st.button("🚀 자동 영상 변환 시작하기", use_container_width=True)
             **💡 [자주 발생하는 오류 원인]**
             1. **대본 오류:** 대본(.txt) 파일에 '엔터 2번(빈 줄)'이 제대로 안 들어갔거나, 불필요한 기호가 섞여 있습니다.
             2. **자막 오류:** 자막(.srt) 파일의 내용이 비정상적입니다.
-            3. **서버 한계 초과:** 150장 이상의 너무 무거운 파일이 들어와 스트림릿 무료 서버가 버티지 못했습니다. (이 경우 영상을 절반으로 나누어 작업해 주세요!)
             
             새로고침(F5) 후 파일을 확인하고 다시 시도해 주세요!
             """)
